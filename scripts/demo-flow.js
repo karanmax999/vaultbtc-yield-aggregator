@@ -1,6 +1,6 @@
 /**
  * Demo Transaction Flow Script
- * 
+ *
  * This script demonstrates the complete user journey through the VaultBTC Yield Aggregator:
  * 1. Mint vBTC tokens to a user
  * 2. User approves StrategyManager to spend vBTC
@@ -10,7 +10,11 @@
  * 6. Check user's yield and total balance
  * 7. User withdraws from strategy
  * 8. User withdraws from StrategyManager back to wallet
- * 
+ *
+ * Babylon Genesis Highlight: This demo uses ERC20 vaultBTC as a placeholder.
+ * In production with Babylon, users would deposit native BTC and receive Babylon vault tokens.
+ * The allocation and yield logic remains identical - only the underlying asset changes.
+ *
  * Usage: npx hardhat run scripts/demo-flow.js --network hardhat
  */
 

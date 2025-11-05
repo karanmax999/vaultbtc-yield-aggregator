@@ -1,6 +1,6 @@
-i/**
+/**
  * Test Suite for VaultBTC Token
- * 
+ *
  * Tests the core ERC20 functionality plus mint and burn operations
  */
 

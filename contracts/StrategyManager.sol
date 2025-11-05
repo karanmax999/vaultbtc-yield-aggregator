@@ -15,6 +15,12 @@ import "./IYieldStrategy.sol";
  * users and multiple yield-generating strategies.
  *
  * Now includes emergency pause functionality for enhanced security
+ *
+ * @dev UPGRADE NOTE: Babylon Genesis Integration
+ * For Babylon-native trustless vaults, replace vaultBTC ERC20 with Babylon's native vault token.
+ * The strategy allocation logic remains compatible - simply swap the token interface.
+ * Future strategies can support dual rewards: DeFi yield + Babylon security rewards (BABY token).
+ * Reference: https://docs.babylonlabs.io/guides/research/btc_trustless_vault/
  */
 contract StrategyManager is Ownable, Pausable {
     

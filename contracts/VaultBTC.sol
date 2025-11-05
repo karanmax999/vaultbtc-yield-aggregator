@@ -11,6 +11,13 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * @notice This token is used as the deposit currency in the yield aggregator
  *
  * Now includes access control and emergency pause for production readiness
+ *
+ * @dev UPGRADE NOTE: Babylon Genesis Integration
+ * To enable native trustless BTC vaults as per Babylon Genesis, replace ERC20 logic here
+ * with integration to Babylon's native vault and proof-of-Bitcoin lock mechanism.
+ * Reference: https://docs.babylonlabs.io/guides/research/btc_trustless_vault/
+ * This contract serves as a drop-in placeholder for Babylon's trustless vault protocol.
+ * When Babylon mainnet is live, swap this ERC20 for Babylon's native vault primitive.
  */
 contract VaultBTC is ERC20, Ownable, Pausable {
     
