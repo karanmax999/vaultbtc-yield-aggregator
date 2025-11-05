@@ -33,8 +33,8 @@ describe("StrategyManager", function () {
     await dummyStrategy.waitForDeployment();
 
     // Mint tokens to users for testing
-    await vaultBTC.mint(user1.address, ethers.parseEther("1000"));
-    await vaultBTC.mint(user2.address, ethers.parseEther("1000"));
+    await vaultBTC.connect(owner).mint(user1.address, ethers.parseEther("1000"));
+    await vaultBTC.connect(owner).mint(user2.address, ethers.parseEther("1000"));
   });
 
   describe("Deployment", function () {
@@ -68,12 +68,12 @@ describe("StrategyManager", function () {
     it("Should prevent non-owner from adding strategy", async function () {
       await expect(
         strategyManager.connect(user1).addStrategy(await dummyStrategy.getAddress())
-      ).to.be.reverted;
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Should prevent adding same strategy twice", async function () {
       await strategyManager.addStrategy(await dummyStrategy.getAddress());
-      
+
       await expect(
         strategyManager.addStrategy(await dummyStrategy.getAddress())
       ).to.be.revertedWith("Strategy already approved");
@@ -82,9 +82,16 @@ describe("StrategyManager", function () {
     it("Should allow owner to remove strategy", async function () {
       await strategyManager.addStrategy(await dummyStrategy.getAddress());
       await strategyManager.removeStrategy(await dummyStrategy.getAddress());
-      
+
       expect(await strategyManager.isStrategyApproved(await dummyStrategy.getAddress())).to.be.false;
       expect(await strategyManager.getStrategyCount()).to.equal(0);
+    });
+
+    it("Should prevent non-owner from removing strategy", async function () {
+      await strategyManager.addStrategy(await dummyStrategy.getAddress());
+      await expect(
+        strategyManager.connect(user1).removeStrategy(await dummyStrategy.getAddress())
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Should return all strategies", async function () {
@@ -139,10 +146,75 @@ describe("StrategyManager", function () {
 
     it("Should revert deposit without approval", async function () {
       const depositAmount = ethers.parseEther("100");
-      
+
       await expect(
         strategyManager.connect(user2).deposit(depositAmount)
       ).to.be.reverted;
+    });
+
+    it("Should prevent deposits when paused", async function () {
+      await strategyManager.pause();
+      const depositAmount = ethers.parseEther("100");
+
+      await expect(
+        strategyManager.connect(user1).deposit(depositAmount)
+      ).to.be.revertedWith("Pausable: paused");
+    });
+
+    it("Should prevent withdrawals when paused", async function () {
+      await strategyManager.connect(user1).deposit(ethers.parseEther("100"));
+      await strategyManager.pause();
+
+      await expect(
+        strategyManager.connect(user1).withdraw(ethers.parseEther("50"))
+      ).to.be.revertedWith("Pausable: paused");
+    });
+
+    it("Should allow owner to pause and unpause", async function () {
+      await strategyManager.pause();
+      expect(await strategyManager.paused()).to.be.true;
+
+      await strategyManager.unpause();
+      expect(await strategyManager.paused()).to.be.false;
+    });
+
+    it("Should prevent non-owner from pausing", async function () {
+      await expect(
+        strategyManager.connect(user1).pause()
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should prevent non-owner from unpausing", async function () {
+      await strategyManager.pause();
+      await expect(
+        strategyManager.connect(user1).unpause()
+      ).to.be.revertedWith("Ownable: caller is not the owner");
+    });
+
+    it("Should prevent allocations when paused", async function () {
+      await strategyManager.pause();
+
+      await expect(
+        strategyManager.connect(user1).allocateToStrategy(
+          await dummyStrategy.getAddress(),
+          ethers.parseEther("100")
+        )
+      ).to.be.revertedWith("Pausable: paused");
+    });
+
+    it("Should prevent withdrawals from strategy when paused", async function () {
+      await strategyManager.connect(user1).allocateToStrategy(
+        await dummyStrategy.getAddress(),
+        ethers.parseEther("100")
+      );
+      await strategyManager.pause();
+
+      await expect(
+        strategyManager.connect(user1).withdrawFromStrategy(
+          await dummyStrategy.getAddress(),
+          ethers.parseEther("50")
+        )
+      ).to.be.revertedWith("Pausable: paused");
     });
 
     it("Should allow user to withdraw vBTC", async function () {

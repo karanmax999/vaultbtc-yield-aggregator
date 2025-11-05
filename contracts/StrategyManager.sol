@@ -3,17 +3,20 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./IYieldStrategy.sol";
 
 /**
  * @title StrategyManager
  * @dev Core contract that manages user deposits and allocations to different yield strategies
  * @notice Users deposit vBTC into this contract and can allocate it to various approved strategies
- * 
+ *
  * This contract acts as the central hub of the yield aggregator, coordinating between
  * users and multiple yield-generating strategies.
+ *
+ * Now includes emergency pause functionality for enhanced security
  */
-contract StrategyManager is Ownable {
+contract StrategyManager is Ownable, Pausable {
     
     // The vBTC token that users deposit
     IERC20 public immutable vaultBTC;
@@ -90,39 +93,39 @@ contract StrategyManager is Ownable {
     /**
      * @dev Deposits vBTC tokens into the StrategyManager
      * @param amount Amount of vBTC to deposit
-     * 
+     *
      * User must approve this contract to spend their vBTC before calling this function
      * Deposited funds sit in the StrategyManager until allocated to a strategy
      */
-    function deposit(uint256 amount) external {
+    function deposit(uint256 amount) external whenNotPaused {
         require(amount > 0, "Amount must be > 0");
-        
+
         // Transfer vBTC from user to this contract
         require(vaultBTC.transferFrom(msg.sender, address(this), amount), "Transfer failed");
-        
+
         // Update user's balance
         userBalances[msg.sender] += amount;
-        
+
         emit Deposited(msg.sender, amount);
     }
     
     /**
      * @dev Withdraws vBTC tokens from the StrategyManager back to the user
      * @param amount Amount of vBTC to withdraw
-     * 
+     *
      * Only withdraws from unallocated balance (not from strategies)
      * To withdraw from strategies, use withdrawFromStrategy first
      */
-    function withdraw(uint256 amount) external {
+    function withdraw(uint256 amount) external whenNotPaused {
         require(amount > 0, "Amount must be > 0");
         require(userBalances[msg.sender] >= amount, "Insufficient balance");
-        
+
         // Update balance
         userBalances[msg.sender] -= amount;
-        
+
         // Transfer vBTC back to user
         require(vaultBTC.transfer(msg.sender, amount), "Transfer failed");
-        
+
         emit Withdrawn(msg.sender, amount);
     }
     
@@ -130,27 +133,27 @@ contract StrategyManager is Ownable {
      * @dev Allocates user's deposited vBTC to a specific yield strategy
      * @param strategy Address of the approved strategy
      * @param amount Amount of vBTC to allocate
-     * 
+     *
      * This moves vBTC from the user's StrategyManager balance into the chosen strategy
      * The strategy will then start generating yield according to its logic
      */
-    function allocateToStrategy(address strategy, uint256 amount) external {
+    function allocateToStrategy(address strategy, uint256 amount) external whenNotPaused {
         require(amount > 0, "Amount must be > 0");
         require(isStrategyApproved[strategy], "Strategy not approved");
         require(userBalances[msg.sender] >= amount, "Insufficient balance");
-        
+
         // Decrease user's available balance in StrategyManager
         userBalances[msg.sender] -= amount;
-        
+
         // Increase user's allocation to this strategy
         userStrategyAllocations[msg.sender][strategy] += amount;
-        
+
         // Approve strategy to take the tokens
         vaultBTC.approve(strategy, amount);
-        
+
         // Call strategy's deposit function
         IYieldStrategy(strategy).deposit(msg.sender, amount);
-        
+
         emit AllocatedToStrategy(msg.sender, strategy, amount);
     }
     
@@ -158,23 +161,23 @@ contract StrategyManager is Ownable {
      * @dev Withdraws user's vBTC from a strategy back to StrategyManager
      * @param strategy Address of the strategy
      * @param amount Amount to withdraw from the strategy
-     * 
+     *
      * This pulls funds back from the strategy to the user's StrategyManager balance
      * The user can then withdraw to their wallet using the withdraw() function
      */
-    function withdrawFromStrategy(address strategy, uint256 amount) external {
+    function withdrawFromStrategy(address strategy, uint256 amount) external whenNotPaused {
         require(amount > 0, "Amount must be > 0");
         require(userStrategyAllocations[msg.sender][strategy] >= amount, "Insufficient strategy allocation");
-        
+
         // Decrease user's allocation in this strategy
         userStrategyAllocations[msg.sender][strategy] -= amount;
-        
+
         // Call strategy's withdraw function (strategy sends tokens back to this contract)
         IYieldStrategy(strategy).withdraw(msg.sender, amount);
-        
+
         // Increase user's available balance in StrategyManager
         userBalances[msg.sender] += amount;
-        
+
         emit WithdrawnFromStrategy(msg.sender, strategy, amount);
     }
     
@@ -212,5 +215,21 @@ contract StrategyManager is Ownable {
      */
     function getStrategyBalance(address user, address strategy) external view returns (uint256) {
         return IYieldStrategy(strategy).balanceOf(user);
+    }
+
+    /**
+     * @dev Pauses all deposit, withdrawal, and allocation operations in emergency situations
+     * Can only be called by the owner
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @dev Unpauses operations after emergency is resolved
+     * Can only be called by the owner
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
